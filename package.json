@@ -1,0 +1,12 @@
+{
+  "name": "shopify-catalog-snapshot",
+  "version": "1.0.0",
+  "description": "Append-only daily snapshots of public Shopify storefront catalogues, zero dependencies.",
+  "type": "module",
+  "bin": { "shopify-catalog-snapshot": "./collector.ts" },
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "demo": "node collector.ts --domain allbirds.com --out out/demo --pages 1"
+  },
+  "license": "MIT"
+}
