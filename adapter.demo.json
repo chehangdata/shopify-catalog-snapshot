@@ -1,0 +1,16 @@
+{
+  "name": "scrapethissite.com hockey teams (demo: query-param pagination + table rows)",
+  "url": "https://www.scrapethissite.com/pages/forms/",
+  "method": "GET",
+  "page_param": "page",
+  "first_page": 1,
+  "row_selector": "tr.team",
+  "fields": {
+    "team": "td.name",
+    "year": "td.year",
+    "wins": "td.wins",
+    "losses": "td.losses",
+    "win_pct": "td.pct"
+  },
+  "stop_when_missing": "tr.team"
+}

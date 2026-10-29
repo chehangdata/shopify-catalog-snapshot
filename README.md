@@ -95,3 +95,39 @@ Listed so nobody has to discover it by reading the source:
 ## Licence
 
 MIT.
+
+## Sites that only expose data through a search form
+
+`collector.ts` needs a JSON endpoint. Most real directories do not have one: they have a search box, a page parameter, and an HTML table. `search.ts` drives that from a JSON adapter, so a new site is a new adapter file rather than a new program.
+
+```bash
+node search.ts --adapter adapter.demo.json --out out/run1 --max-pages 3
+```
+
+Live run against a public practice directory:
+
+```
+scrapethissite.com hockey teams: 75 rows over 3 page(s) — ok (page cap reached)
+team,year,wins,losses,win_pct
+Boston Bruins,1990,44,24,0.55
+```
+
+The adapter is small and declarative:
+
+```json
+{
+  "url": "https://site.example/search",
+  "page_param": "page",
+  "row_selector": "tr.team",
+  "fields": { "team": "td.name", "year": "td.year", "wins": "td.wins" },
+  "stop_when_missing": "tr.team"
+}
+```
+
+Selectors support `tag`, `.class`, `#id`, `[attr=value]` (also `^=` `$=` `*=`), descendant combinators, and `selector@attr` to read an attribute instead of text.
+
+**On reusing libraries.** The honest options were [Crawlee](https://github.com/apify/crawlee) (full crawler framework with proxy rotation and browser fallbacks) and [cheerio](https://github.com/cheeriojs/cheerio) / [linkedom](https://github.com/WebReflection/linkedom) for parsing. Both are good and both would have worked. The engine stays dependency-free anyway, because the first thing a client does with this repo is `git clone && node ...` — requiring an install turns a five-second test into a fifteen-minute setup, and every extra dependency is one more thing that can fail on their machine. What is in here instead is a 90-line tolerant parser plus the selector subset that directory pages actually use, covered by 11 assertions.
+
+If you do want cheerio, it drops in where `select()` is called; the adapter format does not change.
+
+**Failure honesty, again.** A run that gets `http 419` from a rate-limiting host reports `0 rows — http 419`, not an empty dataset. A run whose selectors match nothing says `0 rows on the first page — selectors do not match`, because "my selectors are wrong" and "this site has no results" are different problems and only one of them is fixed by waiting.

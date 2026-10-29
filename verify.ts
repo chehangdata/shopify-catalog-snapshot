@@ -12,6 +12,7 @@
 
 import { diffSnapshots, type Row } from "./diff.ts";
 import { classify } from "./recheck.ts";
+import { parseHtml, select, extractField, textOf } from "./search.ts";
 
 let passed = 0;
 const failures: string[] = [];
@@ -115,9 +116,32 @@ console.log("\nrecheck classifier");
   check("403 is error, never gone", classify(10, 403, null).status === "error");
   check("price change is detected", classify(10, 200, { product: { variants: [{ price: "12", available: true }] } }).status === "price_changed");
 }
+
+console.log("\nform crawler (mini selector engine)");
+{
+  const html = `<html><body><table id="results">
+    <tr class="row"><td class="name">ACME S.p.A.</td><td class="vat">01234567890</td><td><a href="/c/1">detail</a></td></tr>
+    <tr class="row"><td class="name">BETA Srl</td><td class="vat">09876543210</td><td><a href="/c/2">detail</a></td></tr>
+  </table></body></html>`;
+  const doc = parseHtml(html);
+  const rows = select(doc, "tr.row");
+  check("finds rows by tag + class", rows.length === 2);
+  check("class selector only matches whole class tokens", select(doc, ".name").length === 2);
+  check("id selector works", select(doc, "#results").length === 1);
+  check("descendant combinator works", select(doc, "table .vat").length === 2);
+  check("attribute selector works", select(doc, 'a[href="/c/2"]').length === 1);
+  check("prefix attribute selector works", select(doc, 'a[href^="/c/"]').length === 2);
+  check("text extraction is trimmed", textOf(select(doc, ".name")[0]) === "ACME S.p.A.");
+  check("field reads text", extractField(rows[0], ".name") === "ACME S.p.A.");
+  check("field reads an attribute", extractField(rows[0], "a@href") === "/c/1");
+  check("missing field returns empty string, not undefined", extractField(rows[0], ".nope") === "");
+  check("header-only page yields zero rows (0 ≠ parse failure is the crawler's job)",
+    select(parseHtml("<table><thead><tr><th>x</th></tr></thead></table>"), "tr.row").length === 0);
+}
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.error("  - " + f);
   process.exit(1);
 }
+
 
