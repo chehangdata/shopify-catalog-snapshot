@@ -13,6 +13,7 @@
 import { diffSnapshots, type Row } from "./diff.ts";
 import { classify } from "./recheck.ts";
 import { parseHtml, select, extractField, textOf } from "./search.ts";
+import { makeMockSource, normalise, collectAll } from "./source.ts";
 
 let passed = 0;
 const failures: string[] = [];
@@ -138,10 +139,41 @@ console.log("\nform crawler (mini selector engine)");
   check("header-only page yields zero rows (0 ≠ parse failure is the crawler's job)",
     select(parseHtml("<table><thead><tr><th>x</th></tr></thead></table>"), "tr.row").length === 0);
 }
+
+console.log("\nsource adapter + pipeline contract");
+{
+  const { rows, dropped } = normalise(
+    [
+      { sku: "A1", adr: 100, city: "  Delano  " },
+      { sku: "", adr: 120, city: "Bakersfield" },
+      { sku: "A3", adr: Number.NaN, city: "" },
+    ],
+    ["sku"],
+  );
+  check("row with empty key field is dropped, not silently kept", dropped.length === 1 && rows.length === 2);
+  check("strings are trimmed", rows[0].city === "Delano");
+  check("empty string becomes null, not ''", rows[1].city === null);
+  check("NaN price becomes null, not 0", rows[1].adr === null);
+  check("composite key is built from the key fields", rows[0].key === "A1");
+}
+
+async function pipelineChecks() {
+  const mock = makeMockSource({ rowsPerPage: 5, pages: 3, partialPage: 2 });
+  const all = await collectAll(mock);
+  check("collector follows cursors to the end", all.rows.length === 7);
+  check("a partial batch marks the whole snapshot partial", all.complete === false);
+  check("partial snapshot is described as unusable for deletes", all.status.includes("not usable"));
+
+  const clean = await collectAll(makeMockSource({ partialPage: 99 }));
+  check("clean run is marked complete", clean.complete === true);
+  check("clean run collects every page", clean.rows.length === 15);
+}
+await pipelineChecks();
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.error("  - " + f);
   process.exit(1);
 }
+
 
 

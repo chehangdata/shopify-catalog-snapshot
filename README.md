@@ -131,3 +131,51 @@ Selectors support `tag`, `.class`, `#id`, `[attr=value]` (also `^=` `$=` `*=`), 
 If you do want cheerio, it drops in where `select()` is called; the adapter format does not change.
 
 **Failure honesty, again.** A run that gets `http 419` from a rate-limiting host reports `0 rows — http 419`, not an empty dataset. A run whose selectors match nothing says `0 rows on the first page — selectors do not match`, because "my selectors are wrong" and "this site has no results" are different problems and only one of them is fixed by waiting.
+
+## Bring your own source (the thing a licence buyer actually needs)
+
+If a client owns the data — a licensed vendor feed, an internal database, a paid API — they do not need our scraper. They need a shape to conform to. That shape is one function:
+
+```ts
+interface SourceAdapter {
+  id: string;
+  fields: Record<string, string>;        // key -> human meaning, ships in the report
+  fetchBatch(cursor?: string): Promise<Batch>;
+}
+
+interface Batch {
+  rows: Record<string, unknown>[];
+  next?: string;                          // omit to end paging
+  status: "ok" | "partial" | "error";     // status is a value, never an exception
+  note?: string;                          // mandatory when status !== "ok"
+}
+```
+
+That is the whole integration contract. A client adapter is usually about 30 lines, and `source.ts` ships two implementations: a mock licensed provider (offline, deterministic) and the HTTP wrapper around `search.ts`.
+
+```bash
+node pipeline.ts --mock --out out/pipeline-demo      # offline, includes a vendor gap
+node pipeline.ts --adapter adapter.demo.json --out out/daily
+```
+
+Real output from the mock run:
+
+```
+mock-licensed-provider: 7 rows, 0 dropped
+  batch 1: ok 5 rows
+  batch 2: partial 2 rows  vendor returned 2 of 5 rows for page 2
+  snapshot: partial — snapshot is not usable for delete/stop decisions
+```
+
+The mock's second page is **deliberately** partial. Every demo run therefore exercises the rule that matters most: when a vendor returns a short page, the snapshot is marked partial and **removal detection is switched off**. A pipeline that reports "gone" on the strength of an incomplete snapshot deletes the client's live records and looks successful while doing it.
+
+The report file states which mode it ran in:
+
+```json
+"snapshot_status": "partial — snapshot is not usable for delete/stop decisions",
+"note": "partial snapshot: removals intentionally NOT reported"
+```
+
+## What a licence buys
+
+The engine is MIT. What is worth paying for is the part that is not in the repo: a source adapter written against a specific vendor's quirks, one delivered snapshot verified against the client's own expectations, and a support window when the vendor changes shape. See `outbound/tool-licence-offer.md` in the seller's workspace for the priced structure; the short version is that the client keeps their data licence and we sell the pipe.
