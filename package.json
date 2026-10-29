@@ -1,12 +1,17 @@
 {
   "name": "shopify-catalog-snapshot",
-  "version": "1.0.0",
-  "description": "Append-only daily snapshots of public Shopify storefront catalogues, zero dependencies.",
+  "version": "1.1.0",
+  "description": "Append-only daily snapshots of public Shopify storefront catalogues, plus a diff engine. Zero dependencies, TypeScript, Node 22+.",
   "type": "module",
-  "bin": { "shopify-catalog-snapshot": "./collector.ts" },
+  "bin": {
+    "shopify-catalog-snapshot": "./collector.ts",
+    "shopify-catalog-diff": "./diff.ts"
+  },
   "engines": { "node": ">=22" },
   "scripts": {
-    "demo": "node collector.ts --domain allbirds.com --out out/demo --pages 1"
+    "snapshot": "node collector.ts --domain allbirds.com --out out/day --pages 2",
+    "diff": "node diff.ts --prev out/day1.jsonl --cur out/day2.jsonl --out out/delta",
+    "test": "node verify.ts"
   },
   "license": "MIT"
 }
