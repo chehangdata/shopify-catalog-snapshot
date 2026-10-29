@@ -43,6 +43,29 @@ Each change carries store, product_id, title, before and after, so it can go str
 
 **No bypass.** When the storefront returns 403, this tool records it and moves on. It does not rotate user agents to defeat a block, does not touch authenticated endpoints, and only reads the public catalogue path a storefront exposes to any browser.
 
+## Re-checking a list you already delivered
+
+The most common follow-on ask is not "scrape more", it is "is this list still current?" — a client hands back a spreadsheet eight weeks later and wants to know which rows moved, which died, and which now fail.
+
+```bash
+node recheck.ts --rows out/day1.jsonl --out out/recheck --delay 800
+```
+
+Statuses: `unchanged · price_changed · unavailable · gone · not_found · error`.
+
+The distinction that matters: **404 is `gone`, 403 is `error`.** A blocked fetch is never reported as a dead product, because the client would delete a live row on the strength of it.
+
+### The bug this tool found in itself
+
+First live run reported all four test rows as `unavailable`. They were not — the single-product endpoint simply does not return an `available` field; it returns `inventory_quantity` and `inventory_policy`. Reading a missing boolean as `false` turned "field absent" into "out of stock", which is exactly the lie the collector's status contract exists to prevent.
+
+Fixed by reading stock from three sources in order (`available` → `inventory_quantity`/`inventory_policy` → refuse), and covered by an assertion that will fail if anyone reintroduces the shortcut:
+
+```
+ok  missing available + inventory_quantity>0 is NOT unavailable
+ok  no stock evidence at all refuses to guess
+```
+
 ## Verifying it yourself
 
 ```bash

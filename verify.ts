@@ -11,6 +11,7 @@
  */
 
 import { diffSnapshots, type Row } from "./diff.ts";
+import { classify } from "./recheck.ts";
 
 let passed = 0;
 const failures: string[] = [];
@@ -98,8 +99,25 @@ console.log("\nsummary contract");
   check("every change carries store, kind, product_id, title", csvSafe);
 }
 
+
+console.log("\nrecheck classifier");
+{
+  const bodyWithAvail = { product: { variants: [{ price: "10", available: true }] } };
+  check("available=false is unavailable", classify(10, 200, { product: { variants: [{ price: "10", available: false }] } }).status === "unavailable");
+  check("available=true is unchanged", classify(10, 200, bodyWithAvail).status === "unchanged");
+  check("missing available + inventory_quantity>0 is NOT unavailable",
+    classify(10, 200, { product: { variants: [{ price: "10", inventory_quantity: 5 }] } }).status === "unchanged");
+  check("inventory_policy=continue counts as available",
+    classify(10, 200, { product: { variants: [{ price: "10", inventory_quantity: 0, inventory_policy: "continue" }] } }).status === "unchanged");
+  check("no stock evidence at all refuses to guess",
+    classify(10, 200, { product: { variants: [{ price: "10" }] } }).detail.includes("refused to guess"));
+  check("404 is gone, never unavailable", classify(10, 404, null).status === "gone");
+  check("403 is error, never gone", classify(10, 403, null).status === "error");
+  check("price change is detected", classify(10, 200, { product: { variants: [{ price: "12", available: true }] } }).status === "price_changed");
+}
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.error("  - " + f);
   process.exit(1);
 }
+
